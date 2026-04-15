@@ -53,7 +53,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check if already completed
+    // ✅ STOP if cancelled - Immediately block code fetching
+    if (purchase.status === "cancelled") {
+      return NextResponse.json(
+        { error: "This purchase has been cancelled. Cannot fetch verification code." },
+        { status: 400 }
+      );
+    }
+
+    // ✅ STOP if expired
+    if (purchase.status === "expired") {
+      return NextResponse.json(
+        { error: "Purchase expired after 25 minutes. Cannot fetch code." },
+        { status: 400 }
+      );
+    }
+
+    // ✅ STOP if already completed
     if (purchase.status === "completed") {
       return NextResponse.json({
         success: true,
@@ -62,26 +78,18 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Check if cancelled
-    if (purchase.status === "cancelled") {
-      return NextResponse.json(
-        { error: "This purchase has been cancelled" },
-        { status: 400 }
-      );
-    }
-
-    // RULE 1: Check 25-minute timeout
+    // Check 25-minute timeout
     const timeElapsed = (Date.now() - new Date(purchase.createdAt).getTime()) / 1000;
-    if (timeElapsed > 1500) { // 25 minutes = 1500 seconds
+    if (timeElapsed > 1500) {
       purchase.status = "expired";
       await purchase.save();
       return NextResponse.json(
-        { error: "25-minute timeout reached. No code received. Purchase expired." },
+        { error: "25-minute timeout reached. Purchase expired." },
         { status: 400 }
       );
     }
 
-    // RULE 2: Check 3-attempt limit
+    // Check 3-attempt limit
     const codeCheckCount = purchase.codeCheckCount || 0;
     
     if (codeCheckCount >= 3) {
@@ -92,7 +100,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Call SMSBower API to get code
-    const result = await getCodeFromAPI(purchase.mailId);
+    const result = await getCodeFromAPI(Number(purchase.mailId));
     
     // Increment check count
     purchase.codeCheckCount = codeCheckCount + 1;
@@ -116,19 +124,13 @@ export async function POST(req: NextRequest) {
       const remainingAttempts = 3 - purchase.codeCheckCount;
       const remainingTime = Math.max(0, 1500 - timeElapsed);
       
-      let errorMessage = "No verification code received yet";
-      if (result.error?.includes("not received yet")) {
-        errorMessage = `Waiting for code... (Attempt ${purchase.codeCheckCount}/3)`;
-      }
-      
       return NextResponse.json({
         success: false,
-        error: errorMessage,
+        error: `Waiting for code... (Attempt ${purchase.codeCheckCount}/3)`,
         attemptsUsed: purchase.codeCheckCount,
         remainingAttempts: remainingAttempts,
         remainingSeconds: Math.floor(remainingTime),
         remainingMinutes: Math.floor(remainingTime / 60),
-        canCancel: true,
       });
     }
     
