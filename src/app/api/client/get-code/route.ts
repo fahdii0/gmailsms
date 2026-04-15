@@ -3,52 +3,23 @@ import { connectDB } from "@/lib/db";
 import Purchase from "@/models/Purchase";
 import { getUserFromRequest } from "@/lib/auth";
 
-// Fixed API function for getting code
 async function getCodeFromAPI(mailId: number) {
-  const API_KEY = "yu5BsIwXebcjYInuoaYDGojVW1ayPOFv"; // Use your full key
-  const BASE_URL = "https://smsbower.app/api/mail"; // Fixed: .app not .page
+  const API_KEY = "yu5BsIwXebcjYInuoaYDGojVW1ayPOFv";
+  const BASE_URL = "https://smsbower.app/api/mail";
   
   const url = `${BASE_URL}/getCode?api_key=${API_KEY}&mailId=${mailId}`;
   
   try {
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
-    
+    const response = await fetch(url);
     const data = await response.json();
     
     if (data.status === 1) {
-      return {
-        success: true,
-        code: data.code,
-        fullMessage: data.message || data.code,
-      };
+      return { success: true, code: data.code };
     } else {
-      // Handle specific error messages from API
-      let errorMessage = data.error || "Failed to get code";
-      
-      if (errorMessage.includes("Code has not been received yet")) {
-        errorMessage = "Verification code not received yet. Please wait and try again in 30 seconds.";
-      } else if (errorMessage.includes("Pass mail id")) {
-        errorMessage = "Invalid mail ID. Please try purchasing again.";
-      } else if (errorMessage.includes("Activation is already canceled")) {
-        errorMessage = "This email activation has been cancelled.";
-      }
-      
-      return {
-        success: false,
-        error: errorMessage,
-      };
+      return { success: false, error: data.error };
     }
   } catch (error) {
-    console.error("API call error:", error);
-    return {
-      success: false,
-      error: "Failed to connect to SMSBower API",
-    };
+    return { success: false, error: "API connection failed" };
   }
 }
 
@@ -82,35 +53,85 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (purchase.status !== "active") {
+    // Check if already completed
+    if (purchase.status === "completed") {
+      return NextResponse.json({
+        success: true,
+        code: purchase.verificationCode,
+        message: "Code already received",
+      });
+    }
+
+    // Check if cancelled
+    if (purchase.status === "cancelled") {
       return NextResponse.json(
-        { error: "This purchase is no longer active" },
+        { error: "This purchase has been cancelled" },
         { status: 400 }
       );
     }
 
-    // Call SMSBower API with fixed function
-    const result = await getCodeFromAPI(purchase.mailId);
-
-    if (!result.success) {
+    // RULE 1: Check 25-minute timeout
+    const timeElapsed = (Date.now() - new Date(purchase.createdAt).getTime()) / 1000;
+    if (timeElapsed > 1500) { // 25 minutes = 1500 seconds
+      purchase.status = "expired";
+      await purchase.save();
       return NextResponse.json(
-        { error: result.error || "Failed to get verification code" },
-        { status: 200 } // Keep 200 so frontend can show the error message
+        { error: "25-minute timeout reached. No code received. Purchase expired." },
+        { status: 400 }
       );
     }
 
-    // Save code to purchase
-    if (result.code) {
-      purchase.verificationCode = result.code;
-      purchase.status = "completed"; // Mark as completed once code is retrieved
-      await purchase.save();
+    // RULE 2: Check 3-attempt limit
+    const codeCheckCount = purchase.codeCheckCount || 0;
+    
+    if (codeCheckCount >= 3) {
+      return NextResponse.json(
+        { error: "Maximum code check limit (3) reached. Please cancel this purchase." },
+        { status: 400 }
+      );
     }
 
-    return NextResponse.json({
-      success: true,
-      code: result.code,
-      fullMessage: result.fullMessage,
-    });
+    // Call SMSBower API to get code
+    const result = await getCodeFromAPI(purchase.mailId);
+    
+    // Increment check count
+    purchase.codeCheckCount = codeCheckCount + 1;
+    
+    if (result.success && result.code) {
+      // Code received!
+      purchase.verificationCode = result.code;
+      purchase.status = "completed";
+      await purchase.save();
+      
+      return NextResponse.json({
+        success: true,
+        code: result.code,
+        message: "Verification code received!",
+        attemptsUsed: purchase.codeCheckCount,
+      });
+    } else {
+      // No code yet
+      await purchase.save();
+      
+      const remainingAttempts = 3 - purchase.codeCheckCount;
+      const remainingTime = Math.max(0, 1500 - timeElapsed);
+      
+      let errorMessage = "No verification code received yet";
+      if (result.error?.includes("not received yet")) {
+        errorMessage = `Waiting for code... (Attempt ${purchase.codeCheckCount}/3)`;
+      }
+      
+      return NextResponse.json({
+        success: false,
+        error: errorMessage,
+        attemptsUsed: purchase.codeCheckCount,
+        remainingAttempts: remainingAttempts,
+        remainingSeconds: Math.floor(remainingTime),
+        remainingMinutes: Math.floor(remainingTime / 60),
+        canCancel: true,
+      });
+    }
+    
   } catch (error) {
     console.error("Get code error:", error);
     return NextResponse.json(
