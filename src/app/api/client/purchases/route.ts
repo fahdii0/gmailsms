@@ -12,13 +12,16 @@ export async function GET(req: NextRequest) {
 
     await connectDB();
 
-    const purchases = await Purchase.find({ userId: payload.userId })
-      .sort({ createdAt: -1 })
-      .limit(50);
+    // ✅ FILTER OUT cancelled purchases
+    const purchases = await Purchase.find({
+      userId: payload.userId,
+      status: { $in: ["active", "completed"] }  // Only show these
+    }).sort({ createdAt: -1 }).limit(50);
 
     return NextResponse.json({ purchases });
+    
   } catch (error) {
-    console.error("Get purchases error:", error);
+    console.error("Error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
