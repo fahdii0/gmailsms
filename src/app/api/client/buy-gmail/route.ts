@@ -4,7 +4,44 @@ import User from "@/models/User";
 import Purchase from "@/models/Purchase";
 import { getUserFromRequest } from "@/lib/auth";
 import { getSetting } from "@/models/Settings";
-import { getActivation } from "@/lib/smsbower";
+
+// Fixed API function
+async function getActivation(service: string) {
+  const API_KEY = "yu5BsIwXebcjYInuoaYDGojVW1ayPOFv"; // Use full key
+  const BASE_URL = "https://smsbower.app/api/mail"; // Fixed: .app not .page
+  
+  const url = `${BASE_URL}/getActivation?api_key=${API_KEY}&service=${service}&domain=gmail.com&alias=0`;
+  
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+    
+    const data = await response.json();
+    
+    if (data.status === 1) {
+      return {
+        success: true,
+        mailId: data.mailId,
+        email: data.mail,
+      };
+    } else {
+      return {
+        success: false,
+        error: data.error || "Failed to get activation",
+      };
+    }
+  } catch (error) {
+    console.error("API call error:", error);
+    return {
+      success: false,
+      error: "API connection failed",
+    };
+  }
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -29,8 +66,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Call SMSBower API
-    const result = await getActivation("google");
+    // Call SMSBower API with correct service code
+    // Try these service codes: "ot" (Any Other), "gmail", or check their service list
+    const result = await getActivation("ot"); // "ot" = Any Other service
 
     if (!result.success || !result.mailId || !result.email) {
       return NextResponse.json(
@@ -54,6 +92,7 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({
+      success: true,
       purchase: {
         id: purchase._id,
         mailId: purchase.mailId,
