@@ -235,13 +235,6 @@ export default function ClientDashboard() {
                         >
                           Done
                         </button>
-                        <button
-                          onClick={() => updateStatus(purchase._id, "cancel")}
-                          disabled={statusLoading === purchase._id}
-                          className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
-                        >
-                          Cancel
-                        </button>
                       </div>
                     )}
                   </div>
