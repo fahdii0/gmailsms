@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import Purchase from "@/models/Purchase";
+import User from "@/models/User";  // ← ADD THIS
 import { getUserFromRequest } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
@@ -30,20 +31,48 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Purchase not found" }, { status: 404 });
     }
 
-    // Just update database - NO API CALL
+    // ✅ CASHBACK on cancel
     if (action === "cancel") {
+      // Only allow cancel if still active
+      if (purchase.status !== "active") {
+        return NextResponse.json(
+          { error: "Can only cancel active purchases" },
+          { status: 400 }
+        );
+      }
+
+      // Add cashback to user balance
+      const user = await User.findById(payload.userId);
+      if (user) {
+        user.balance += purchase.price;
+        await user.save();
+      }
+
+      // Mark as cancelled
       purchase.status = "cancelled";
       await purchase.save();
-      return NextResponse.json({ success: true, message: "Cancelled" });
+
+      return NextResponse.json({
+        success: true,
+        message: "Cancelled with cashback",
+        refundAmount: purchase.price,
+        newBalance: user?.balance
+      });
     }
 
+    // ✅ NO CASHBACK on finish
     if (action === "finish") {
       purchase.status = "completed";
       await purchase.save();
-      return NextResponse.json({ success: true, message: "Completed" });
+      
+      return NextResponse.json({
+        success: true,
+        message: "Completed"
+      });
     }
     
   } catch (error) {
+    console.error("Error:", error);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
