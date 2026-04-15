@@ -188,7 +188,7 @@ export default function ClientDashboard() {
             <div className="p-6 text-center text-gray-500">Loading purchases...</div>
           ) : purchases.length === 0 ? (
             <div className="p-6 text-center text-gray-500">
-              No purchases yet. Click &quot;Buy Gmail&quot; to get started!
+              No purchases yet. Click &ldquo;Buy Gmail&rdquo; to get started!
             </div>
           ) : (
             <div className="divide-y divide-gray-200">

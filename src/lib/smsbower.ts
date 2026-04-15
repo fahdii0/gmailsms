@@ -22,7 +22,6 @@ async function callAPI(params: Record<string, string>): Promise<SMSBowerResponse
   try {
     const response = await fetch(url.toString(), {
       method: "GET",
-      headers: { "Content-Type": "application/json" },
     });
 
     const text = await response.text();
