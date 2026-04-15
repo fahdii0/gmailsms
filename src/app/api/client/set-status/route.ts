@@ -2,7 +2,27 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import Purchase from "@/models/Purchase";
 import { getUserFromRequest } from "@/lib/auth";
-import { setStatus } from "@/lib/smsbower";
+
+async function setStatusInAPI(mailId: number, action: string) {
+  const API_KEY = "yu5BsIwXebcjYInuoaYDGojVW1ayPOFv";
+  const BASE_URL = "https://smsbower.app/api/mail";
+  
+  const statusCode = action === "cancel" ? 2 : 3;
+  const url = `${BASE_URL}/setStatus?api_key=${API_KEY}&id=${mailId}&status=${statusCode}`;
+  
+  try {
+    const response = await fetch(url);
+    const data = await response.json();
+    
+    if (data.status === 1) {
+      return { success: true };
+    } else {
+      return { success: false, error: data.error };
+    }
+  } catch (error) {
+    return { success: false, error: "API connection failed" };
+  }
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -11,11 +31,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { purchaseId, status } = await req.json();
+    const { purchaseId, action } = await req.json();
 
-    if (!purchaseId || !status || !["cancel", "finish"].includes(status)) {
+    if (!purchaseId || !["cancel", "finish"].includes(action)) {
       return NextResponse.json(
-        { error: "Purchase ID and valid status (cancel/finish) are required" },
+        { error: "Purchase ID and action (cancel/finish) required" },
         { status: 400 }
       );
     }
@@ -28,22 +48,28 @@ export async function POST(req: NextRequest) {
     });
 
     if (!purchase) {
-      return NextResponse.json(
-        { error: "Purchase not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Purchase not found" }, { status: 404 });
     }
 
-    if (purchase.status !== "active") {
+    // RULE 3: Cannot cancel if code already received
+    if (action === "cancel" && purchase.verificationCode) {
       return NextResponse.json(
-        { error: "This purchase is no longer active" },
+        { error: "Cannot cancel - verification code already received" },
         { status: 400 }
       );
     }
 
-    // Call SMSBower API
-    const result = await setStatus(purchase.mailId, status);
+    // Check if already completed
+    if (purchase.status === "completed") {
+      return NextResponse.json(
+        { error: "Purchase already completed" },
+        { status: 400 }
+      );
+    }
 
+    // Call API
+    const result = await setStatusInAPI(purchase.mailId, action);
+    
     if (!result.success) {
       return NextResponse.json(
         { error: result.error || "Failed to update status" },
@@ -51,14 +77,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Update purchase status
-    purchase.status = status === "cancel" ? "cancelled" : "completed";
+    // Update local status
+    purchase.status = action === "cancel" ? "cancelled" : "completed";
     await purchase.save();
 
     return NextResponse.json({
-      message: `Purchase ${status === "cancel" ? "cancelled" : "completed"} successfully`,
+      success: true,
+      message: `Purchase ${action === "cancel" ? "cancelled" : "completed"} successfully`,
       status: purchase.status,
     });
+    
   } catch (error) {
     console.error("Set status error:", error);
     return NextResponse.json(
