@@ -6,8 +6,9 @@ export interface IPurchase extends Document {
   email: string;
   service: string;
   price: number;
-  status: "active" | "completed" | "cancelled";
+  status: "active" | "completed" | "cancelled" | "expired";  // Added "expired"
   verificationCode?: string;
+  codeCheckCount: number;  // ← ADD THIS for 3-attempt limit
   createdAt: Date;
   updatedAt: Date;
 }
@@ -19,8 +20,13 @@ const PurchaseSchema = new Schema<IPurchase>(
     email: { type: String, required: true },
     service: { type: String, default: "google" },
     price: { type: Number, required: true },
-    status: { type: String, enum: ["active", "completed", "cancelled"], default: "active" },
+    status: { 
+      type: String, 
+      enum: ["active", "completed", "cancelled", "expired"],  // Added "expired"
+      default: "active" 
+    },
     verificationCode: { type: String },
+    codeCheckCount: { type: Number, default: 0 },  // ← ADD THIS
   },
   { timestamps: true }
 );
