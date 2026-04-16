@@ -6,7 +6,7 @@ import { getUserFromRequest } from "@/lib/auth";
 import { getSetting } from "@/models/Settings";
 
 const API_KEY = "yu5BsIwXebcjYInuoaYDGojVW1ayPOFv";
-const BASE_URL = "https://smsbower.page/api/mail";
+const BASE_URL = "https://smsbower.app/api/mail"; // Use .app not .page
 
 // Service codes from API documentation
 const SERVICE_MAP = {
@@ -16,14 +16,16 @@ const SERVICE_MAP = {
 
 async function getActivation(service: "gmail" | "facebook") {
   const serviceCode = SERVICE_MAP[service];
+  
+  // Build URL differently based on service
   let url = `${BASE_URL}/getActivation?api_key=${API_KEY}&service=${serviceCode}`;
   
-  // Add domain only for Gmail
+  // Only add domain for Gmail - Facebook doesn't need domain parameter
   if (service === "gmail") {
     url += `&domain=gmail.com`;
   }
   
-  // Add alias=0 as in your working example
+  // Add alias=0 for both services
   url += `&alias=0`;
   
   console.log("Calling API:", url.replace(API_KEY, "HIDDEN"));
@@ -35,18 +37,6 @@ async function getActivation(service: "gmail" | "facebook") {
         "Content-Type": "application/json",
       },
     });
-    
-    console.log("Response status:", response.status);
-    
-    // Check if response is ok
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("API error response:", errorText);
-      return {
-        success: false,
-        error: `API returned ${response.status}: ${errorText}`,
-      };
-    }
     
     const data = await response.json();
     console.log("API Response:", data);
@@ -82,8 +72,6 @@ export async function POST(req: NextRequest) {
     // Get service type from request body
     const body = await req.json();
     const { serviceType } = body;
-    
-    console.log("Request body:", body);
     
     // Validate service type - ONLY allow gmail or facebook
     if (!serviceType || (serviceType !== "gmail" && serviceType !== "facebook")) {
