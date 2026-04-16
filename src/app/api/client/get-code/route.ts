@@ -53,7 +53,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ✅ STOP if cancelled - Immediately block code fetching
+    // Initialize codes array if it doesn't exist
+    if (!purchase.allCodes) {
+      purchase.allCodes = [];
+    }
+
+    // ✅ STOP if cancelled
     if (purchase.status === "cancelled") {
       return NextResponse.json(
         { error: "This purchase has been cancelled. Cannot fetch verification code." },
@@ -69,12 +74,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ✅ STOP if already completed
+    // ✅ STOP if manually completed by user
     if (purchase.status === "completed") {
       return NextResponse.json({
         success: true,
-        code: purchase.verificationCode,
-        message: "Code already received",
+        allCodes: purchase.allCodes,
+        latestCode: purchase.verificationCode,
+        message: "Purchase already completed",
       });
     }
 
@@ -89,48 +95,70 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check 3-attempt limit
-    const codeCheckCount = purchase.codeCheckCount || 0;
-    
-    if (codeCheckCount >= 3) {
-      return NextResponse.json(
-        { error: "Maximum code check limit (3) reached. Please cancel this purchase." },
-        { status: 400 }
-      );
-    }
-
     // Call SMSBower API to get code
     const result = await getCodeFromAPI(Number(purchase.mailId));
     
-    // Increment check count
-    purchase.codeCheckCount = codeCheckCount + 1;
-    
     if (result.success && result.code) {
-      // Code received!
-      purchase.verificationCode = result.code;
-      purchase.status = "completed";
-      await purchase.save();
+      // Check if this code is new (not already in allCodes)
+      const isNewCode = !purchase.allCodes.includes(result.code);
       
-      return NextResponse.json({
-        success: true,
-        code: result.code,
-        message: "Verification code received!",
-        attemptsUsed: purchase.codeCheckCount,
-      });
+      if (isNewCode) {
+        // Add to allCodes array
+        purchase.allCodes.push(result.code);
+        // Update verificationCode to latest
+        purchase.verificationCode = result.code;
+        
+        // Only auto-complete on first code or keep scanning if user wants multiple
+        // You can change this behavior based on your needs
+        if (!purchase.status || purchase.status === "pending") {
+          purchase.status = "completed";
+        }
+        
+        await purchase.save();
+        
+        return NextResponse.json({
+          success: true,
+          newCode: result.code,
+          allCodes: purchase.allCodes,
+          latestCode: result.code,
+          message: `New code received! (Total: ${purchase.allCodes.length})`,
+          attemptsUsed: purchase.codeCheckCount || 0,
+          remainingSeconds: Math.floor(1500 - timeElapsed),
+        });
+      } else {
+        // Same code as before
+        await purchase.save();
+        
+        const remainingTime = Math.max(0, 1500 - timeElapsed);
+        
+        return NextResponse.json({
+          success: false,
+          error: "No new code yet. Waiting for new SMS...",
+          allCodes: purchase.allCodes,
+          latestCode: purchase.verificationCode,
+          attemptsUsed: purchase.codeCheckCount || 0,
+          remainingSeconds: Math.floor(remainingTime),
+          remainingMinutes: Math.floor(remainingTime / 60),
+          isScanning: true,
+        });
+      }
     } else {
-      // No code yet
-      await purchase.save();
-      
-      const remainingAttempts = 3 - purchase.codeCheckCount;
+      // No code received from API
       const remainingTime = Math.max(0, 1500 - timeElapsed);
+      
+      // Increment check count for tracking (no limit)
+      purchase.codeCheckCount = (purchase.codeCheckCount || 0) + 1;
+      await purchase.save();
       
       return NextResponse.json({
         success: false,
-        error: `Waiting for code... (Attempt ${purchase.codeCheckCount}/3)`,
+        error: `Waiting for code... (Checking ${purchase.codeCheckCount} times)`,
+        allCodes: purchase.allCodes,
+        latestCode: purchase.verificationCode,
         attemptsUsed: purchase.codeCheckCount,
-        remainingAttempts: remainingAttempts,
         remainingSeconds: Math.floor(remainingTime),
         remainingMinutes: Math.floor(remainingTime / 60),
+        isScanning: true,
       });
     }
     
