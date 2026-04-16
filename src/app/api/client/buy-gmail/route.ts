@@ -5,27 +5,12 @@ import Purchase from "@/models/Purchase";
 import { getUserFromRequest } from "@/lib/auth";
 import { getSetting } from "@/models/Settings";
 
-const API_KEY = "yu5BsIwXebcjYInuoaYDGojVW1ayPOFv";
-const BASE_URL = "https://smsbower.app/api/mail";
-
-// Service codes from API documentation
-const SERVICE_MAP = {
-  gmail: "ot",      // "ot" = Any Other (works for Gmail)
-  facebook: "fb"    // "fb" = Facebook
-};
-
-async function getActivation(service: "gmail" | "facebook") {
-  const serviceCode = SERVICE_MAP[service];
+// Fixed API function
+async function getActivation(service: string) {
+  const API_KEY = "yu5BsIwXebcjYInuoaYDGojVW1ayPOFv"; // Use full key
+  const BASE_URL = "https://smsbower.app/api/mail"; // Fixed: .app not .page
   
-  // Build URL properly
-  let url = `${BASE_URL}/getActivation?api_key=${API_KEY}&service=${serviceCode}&alias=0`;
-  
-  // Only add domain for Gmail
-  if (service === "gmail") {
-    url += `&domain=gmail.com`;
-  }
-  
-  console.log("Calling API:", url.replace(API_KEY, "HIDDEN"));
+  const url = `${BASE_URL}/getActivation?api_key=${API_KEY}&service=${service}&domain=gmail.com&alias=0`;
   
   try {
     const response = await fetch(url, {
@@ -36,7 +21,6 @@ async function getActivation(service: "gmail" | "facebook") {
     });
     
     const data = await response.json();
-    console.log("API Response:", data);
     
     if (data.status === 1) {
       return {
@@ -54,7 +38,7 @@ async function getActivation(service: "gmail" | "facebook") {
     console.error("API call error:", error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : "API connection failed",
+      error: "API connection failed",
     };
   }
 }
@@ -70,7 +54,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { serviceType } = body;
     
-    // ONLY allow gmail or facebook
+    // RESTRICTION: ONLY allow gmail or facebook
     if (!serviceType || (serviceType !== "gmail" && serviceType !== "facebook")) {
       return NextResponse.json(
         { error: "Invalid service. Allowed services: gmail, facebook only" },
@@ -80,9 +64,10 @@ export async function POST(req: NextRequest) {
 
     await connectDB();
 
-    // Get price based on service
-    const price = serviceType === "gmail" ? 25 : 20; // Fixed prices
-    // Note: Remove the getSetting call if you don't have these settings, or add them to your DB
+    // Get price based on service type
+    const price = serviceType === "gmail" 
+      ? Number(await getSetting("gmail_price", "25"))
+      : Number(await getSetting("facebook_price", "20"));
 
     const user = await User.findById(payload.userId);
     if (!user) {
@@ -96,12 +81,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Get activation from API
-    const result = await getActivation(serviceType);
+    // Map service to API service code
+    const serviceCode = serviceType === "gmail" ? "ot" : "fb";
+    const result = await getActivation(serviceCode);
 
     if (!result.success || !result.mailId || !result.email) {
       return NextResponse.json(
-        { error: result.error || `Failed to get ${serviceType} account` },
+        { error: result.error || `Failed to get ${serviceType} activation` },
         { status: 502 }
       );
     }
@@ -136,7 +122,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error("Buy service error:", error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Internal server error" },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }
