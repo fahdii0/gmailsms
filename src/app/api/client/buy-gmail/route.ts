@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
     // Create purchase record
     const purchase = await Purchase.create({
       userId: user._id,
-      mailId: result.mailId,
+      mailId: Number(result.mailId),
       email: result.email,
       service: "fb",
       price: gmailPrice,
