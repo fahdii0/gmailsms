@@ -5,7 +5,7 @@ import Purchase from "@/models/Purchase";
 import { getUserFromRequest } from "@/lib/auth";
 import { getSetting } from "@/models/Settings";
 
-const API_KEY = "yu5BsIwXebcjYInuoaYDGojVW1ayPOFv"; // Make sure this is the FULL key
+const API_KEY = "yu5BsIwXebcjYInuoaYDGojVW1ayPOFv";
 const BASE_URL = "https://smsbower.page/api/mail";
 
 // Service codes from API documentation
@@ -26,7 +26,7 @@ async function getActivation(service: "gmail" | "facebook") {
   // Add alias=0 as in your working example
   url += `&alias=0`;
   
-  console.log("Calling API:", url.replace(API_KEY, "HIDDEN")); // Log without exposing full key
+  console.log("Calling API:", url.replace(API_KEY, "HIDDEN"));
   
   try {
     const response = await fetch(url, {
@@ -67,7 +67,7 @@ async function getActivation(service: "gmail" | "facebook") {
     console.error("API call error:", error);
     return {
       success: false,
-      error: error.message || "API connection failed",
+      error: error instanceof Error ? error.message : "API connection failed",
     };
   }
 }
@@ -151,7 +151,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error("Buy service error:", error);
     return NextResponse.json(
-      { error: error.message || "Internal server error" },
+      { error: error instanceof Error ? error.message : "Internal server error" },
       { status: 500 }
     );
   }
