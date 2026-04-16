@@ -5,6 +5,7 @@ import { useAuth } from "@/components/AuthProvider";
 import Navbar from "@/components/Navbar";
 import { useRouter } from "next/navigation";
 import CodeScanner from "@/components/CodeScanner";
+import { IPurchase } from "@/models/Purchase";
 
 interface Purchase {
   _id: string;
@@ -20,7 +21,7 @@ interface Purchase {
 export default function ClientDashboard() {
   const { user, token, loading: authLoading, refreshUser } = useAuth();
   const router = useRouter();
-  const [purchases, setPurchases] = useState<Purchase[]>([];
+  const [purchases, setPurchases] = useState<IPurchase[]>([]);
   const [loading, setLoading] = useState(false);
   const [buyLoading, setBuyLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
