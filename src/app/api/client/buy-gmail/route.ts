@@ -5,12 +5,26 @@ import Purchase from "@/models/Purchase";
 import { getUserFromRequest } from "@/lib/auth";
 import { getSetting } from "@/models/Settings";
 
-// Fixed API function
-async function getActivation(service: string) {
-  const API_KEY = "yu5BsIwXebcjYInuoaYDGojVW1ayPOFv"; // Use full key
-  const BASE_URL = "https://smsbower.app/api/mail"; // Fixed: .app not .page
+// Fixed: Correct API base URL from documentation
+const API_KEY = "yu5BsIwXebcjYInuoaYDGojVW1ayPOFv";
+const BASE_URL = "https://smsbower.app/api/mail"; // Changed from .app to .page
+
+// Map service names to API service codes
+const SERVICE_MAP = {
+  gmail: "ot",  // "ot" = Any Other (works for Gmail)
+  facebook: "fb"
+};
+
+async function getActivation(service: "gmail" | "facebook") {
+  const serviceCode = SERVICE_MAP[service];
+  const domain = service === "gmail" ? "gmail.com" : "";
   
-  const url = `${BASE_URL}/getActivation?api_key=${API_KEY}&service=${service}&domain=gmail.com&alias=0`;
+  let url = `${BASE_URL}/getActivation?api_key=${API_KEY}&service=${serviceCode}`;
+  
+  // Add domain only for Gmail
+  if (domain) {
+    url += `&domain=${domain}`;
+  }
   
   try {
     const response = await fetch(url, {
@@ -50,35 +64,47 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Get service from request body
+    const body = await req.json();
+    const { serviceType } = body; // Expected: "gmail" or "facebook"
+    
+    if (!serviceType || !["gmail", "facebook"].includes(serviceType)) {
+      return NextResponse.json(
+        { error: "Invalid service. Allowed: gmail, facebook" },
+        { status: 400 }
+      );
+    }
+
     await connectDB();
 
-    const gmailPrice = Number(await getSetting("gmail_price", "25"));
+    // Get price based on service type
+    const priceSetting = serviceType === "gmail" ? "gmail_price" : "facebook_price";
+    const price = Number(await getSetting(priceSetting, serviceType === "gmail" ? "25" : "20"));
 
     const user = await User.findById(payload.userId);
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    if (user.balance < gmailPrice) {
+    if (user.balance < price) {
       return NextResponse.json(
-        { error: `Insufficient balance. You need ${gmailPrice} PKR. Current balance: ${user.balance} PKR` },
+        { error: `Insufficient balance. You need ${price} PKR. Current balance: ${user.balance} PKR` },
         { status: 400 }
       );
     }
 
-    // Call SMSBower API with correct service code
-    // Try these service codes: "ot" (Any Other), "gmail", or check their service list
-    const result = await getActivation("ot"); // "ot" = Any Other service
+    // Call API with correct service
+    const result = await getActivation(serviceType);
 
     if (!result.success || !result.mailId || !result.email) {
       return NextResponse.json(
-        { error: result.error || "Failed to get Gmail activation" },
+        { error: result.error || `Failed to get ${serviceType} activation` },
         { status: 502 }
       );
     }
 
     // Deduct balance
-    user.balance -= gmailPrice;
+    user.balance -= price;
     await user.save();
 
     // Create purchase record
@@ -86,8 +112,8 @@ export async function POST(req: NextRequest) {
       userId: user._id,
       mailId: result.mailId,
       email: result.email,
-      service: "google",
-      price: gmailPrice,
+      service: serviceType,
+      price: price,
       status: "active",
     });
 
@@ -97,6 +123,7 @@ export async function POST(req: NextRequest) {
         id: purchase._id,
         mailId: purchase.mailId,
         email: purchase.email,
+        service: purchase.service,
         price: purchase.price,
         status: purchase.status,
         createdAt: purchase.createdAt,
@@ -104,7 +131,7 @@ export async function POST(req: NextRequest) {
       newBalance: user.balance,
     });
   } catch (error) {
-    console.error("Buy Gmail error:", error);
+    console.error("Buy service error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
