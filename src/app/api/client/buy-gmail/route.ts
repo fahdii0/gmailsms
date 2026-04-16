@@ -28,14 +28,20 @@ async function getActivation(serviceType: "gmail" | "facebook") {
   
   console.log("Calling API:", url.replace(SMSBOWER_API_KEY, "HIDDEN"));
   
+  // Create AbortController for timeout
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  
   try {
     const response = await fetch(url, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
       },
-      timeout: 15000, // 15 second timeout
+      signal: controller.signal,
     });
+    
+    clearTimeout(timeoutId);
     
     const responseText = await response.text();
     console.log("Raw API response:", responseText);
@@ -80,6 +86,7 @@ async function getActivation(serviceType: "gmail" | "facebook") {
       };
     }
   } catch (error) {
+    clearTimeout(timeoutId);
     console.error("API call error:", error);
     return {
       success: false,
