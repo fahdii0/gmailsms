@@ -2,12 +2,13 @@ import mongoose, { Schema, Document, Model } from "mongoose";
 
 export interface IPurchase extends Document {
   userId: mongoose.Types.ObjectId;
-  mailId: number;  // Changed to Number
+  mailId: number;
   email: string;
   service: string;
   price: number;
   status: "active" | "completed" | "cancelled" | "expired";
   verificationCode?: string;
+  allCodes: string[]; // <-- Naya field add kiya
   codeCheckCount: number;
   createdAt: Date;
   updatedAt: Date;
@@ -16,7 +17,7 @@ export interface IPurchase extends Document {
 const PurchaseSchema = new Schema<IPurchase>(
   {
     userId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
-    mailId: { type: Number, required: true },  // Changed to Number
+    mailId: { type: Number, required: true },
     email: { type: String, required: true },
     service: { type: String, default: "google" },
     price: { type: Number, required: true },
@@ -26,6 +27,7 @@ const PurchaseSchema = new Schema<IPurchase>(
       default: "active" 
     },
     verificationCode: { type: String },
+    allCodes: { type: [String], default: [] }, // <-- Naya array field yahan add kiya
     codeCheckCount: { type: Number, default: 0 },
   },
   { timestamps: true }
