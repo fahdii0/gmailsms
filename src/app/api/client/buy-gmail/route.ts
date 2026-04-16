@@ -5,12 +5,28 @@ import Purchase from "@/models/Purchase";
 import { getUserFromRequest } from "@/lib/auth";
 import { getSetting } from "@/models/Settings";
 
-// Fixed API function
-async function getActivation(service: string) {
-  const API_KEY = "yu5BsIwXebcjYInuoaYDGojVW1ayPOFv"; // Use full key
-  const BASE_URL = "https://smsbower.app/api/mail"; // Fixed: .app not .page
+const SMSBOWER_API_KEY = "yu5BsIwXebcjYInuoaYDGojVW1ayPOFv";
+const SMSBOWER_BASE_URL = "https://smsbower.online/api/mail/";
+
+async function getActivation(serviceType: "gmail" | "facebook") {
+  // Map service to API service code
+  const serviceCode = serviceType === "gmail" ? "ot" : "fb";
+  const domain = serviceType === "gmail" ? "gmail.com" : "";
   
-  const url = `${BASE_URL}/getActivation?api_key=${API_KEY}&service=${service}&domain=gmail.com&alias=0`;
+  const params = new URLSearchParams({
+    api_key: SMSBOWER_API_KEY,
+    service: serviceCode,
+    ref: "",
+    maxPrice: ""
+  });
+  
+  if (domain) {
+    params.append("domain", domain);
+  }
+  
+  const url = `${SMSBOWER_BASE_URL}getActivation?${params.toString()}`;
+  
+  console.log("Calling API:", url.replace(SMSBOWER_API_KEY, "HIDDEN"));
   
   try {
     const response = await fetch(url, {
@@ -18,27 +34,56 @@ async function getActivation(service: string) {
       headers: {
         "Content-Type": "application/json",
       },
+      timeout: 15000, // 15 second timeout
     });
     
-    const data = await response.json();
+    const responseText = await response.text();
+    console.log("Raw API response:", responseText);
     
-    if (data.status === 1) {
+    let activationId = null;
+    let emailAddress = null;
+    
+    // Parse response (handles both JSON and string responses like the Express version)
+    if (typeof responseText === "string") {
+      if (responseText.includes("ACCESS_ACTIVATION")) {
+        const parts = responseText.split(":");
+        activationId = parts[1];
+        emailAddress = parts[2];
+      } else if (responseText.includes(":")) {
+        const parts = responseText.split(":");
+        activationId = parts[0];
+        emailAddress = parts[1];
+      }
+    }
+    
+    // Try JSON parse
+    try {
+      const data = JSON.parse(responseText);
+      if (data.status === 1 || data.status === "1") {
+        activationId = data.mailId || data.id || data.activationId;
+        emailAddress = data.mail || data.email;
+      }
+    } catch (e) {
+      // Not JSON, that's fine
+    }
+    
+    if (activationId && emailAddress) {
       return {
         success: true,
-        mailId: data.mailId,
-        email: data.mail,
+        mailId: activationId,
+        email: emailAddress,
       };
     } else {
       return {
         success: false,
-        error: data.error || "Failed to get activation",
+        error: responseText || "Failed to get activation",
       };
     }
   } catch (error) {
     console.error("API call error:", error);
     return {
       success: false,
-      error: "API connection failed",
+      error: error instanceof Error ? error.message : "API connection failed",
     };
   }
 }
@@ -53,6 +98,8 @@ export async function POST(req: NextRequest) {
     // Get service type from request body
     const body = await req.json();
     const { serviceType } = body;
+    
+    console.log("Requested service type:", serviceType);
     
     // RESTRICTION: ONLY allow gmail or facebook
     if (!serviceType || (serviceType !== "gmail" && serviceType !== "facebook")) {
@@ -81,13 +128,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Map service to API service code
-    const serviceCode = serviceType === "gmail" ? "ot" : "fb";
-    const result = await getActivation(serviceCode);
+    // Get activation from API
+    const result = await getActivation(serviceType);
 
     if (!result.success || !result.mailId || !result.email) {
       return NextResponse.json(
-        { error: result.error || `Failed to get ${serviceType} activation` },
+        { error: result.error || `Failed to get ${serviceType} account` },
         { status: 502 }
       );
     }
@@ -122,7 +168,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error("Buy service error:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: error instanceof Error ? error.message : "Internal server error" },
       { status: 500 }
     );
   }
