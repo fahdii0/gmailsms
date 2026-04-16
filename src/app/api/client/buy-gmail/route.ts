@@ -5,26 +5,25 @@ import Purchase from "@/models/Purchase";
 import { getUserFromRequest } from "@/lib/auth";
 import { getSetting } from "@/models/Settings";
 
-// Fixed: Correct API base URL from documentation
 const API_KEY = "yu5BsIwXebcjYInuoaYDGojVW1ayPOFv";
-const BASE_URL = "https://smsbower.app/api/mail"; // Changed from .app to .page
+const BASE_URL = "https://smsbower.app/api/mail"; // Keep working .app URL
 
-// Map service names to API service codes
+// Service codes from API documentation
 const SERVICE_MAP = {
-  gmail: "ot",  // "ot" = Any Other (works for Gmail)
-  facebook: "fb"
+  gmail: "ot",      // "ot" = Any Other (works for Gmail)
+  facebook: "fb"    // "fb" = Facebook
 };
 
 async function getActivation(service: "gmail" | "facebook") {
   const serviceCode = SERVICE_MAP[service];
-  const domain = service === "gmail" ? "gmail.com" : "";
-  
   let url = `${BASE_URL}/getActivation?api_key=${API_KEY}&service=${serviceCode}`;
   
   // Add domain only for Gmail
-  if (domain) {
-    url += `&domain=${domain}`;
+  if (service === "gmail") {
+    url += `&domain=gmail.com`;
   }
+  
+  console.log("Calling API:", url);
   
   try {
     const response = await fetch(url, {
@@ -35,6 +34,7 @@ async function getActivation(service: "gmail" | "facebook") {
     });
     
     const data = await response.json();
+    console.log("API Response:", data);
     
     if (data.status === 1) {
       return {
@@ -64,20 +64,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get service from request body
+    // Get service type from request body
     const body = await req.json();
-    const { serviceType } = body; // Expected: "gmail" or "facebook"
+    const { serviceType } = body;
     
-    if (!serviceType || !["gmail", "facebook"].includes(serviceType)) {
+    // Validate service type - ONLY allow gmail or facebook
+    if (!serviceType || (serviceType !== "gmail" && serviceType !== "facebook")) {
       return NextResponse.json(
-        { error: "Invalid service. Allowed: gmail, facebook" },
+        { error: "Invalid service. Allowed services: gmail, facebook" },
         { status: 400 }
       );
     }
 
     await connectDB();
 
-    // Get price based on service type
+    // Get price based on service
     const priceSetting = serviceType === "gmail" ? "gmail_price" : "facebook_price";
     const price = Number(await getSetting(priceSetting, serviceType === "gmail" ? "25" : "20"));
 
@@ -93,12 +94,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Call API with correct service
+    // Get activation from API
     const result = await getActivation(serviceType);
 
     if (!result.success || !result.mailId || !result.email) {
       return NextResponse.json(
-        { error: result.error || `Failed to get ${serviceType} activation` },
+        { error: result.error || `Failed to get ${serviceType} account` },
         { status: 502 }
       );
     }
