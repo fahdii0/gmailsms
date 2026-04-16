@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
 
     await connectDB();
 
-    const gmailPrice = Number(await getSetting("gmail_price", "10"));
+    const gmailPrice = Number(await getSetting("gmail_price", "25"));
 
     const user = await User.findById(payload.userId);
     if (!user) {
