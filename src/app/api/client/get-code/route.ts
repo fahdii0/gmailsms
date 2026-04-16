@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
         
         // Only auto-complete on first code or keep scanning if user wants multiple
         // You can change this behavior based on your needs
-        if (!purchase.status || purchase.status === "pending") {
+        if (purchase.status === "active") {
           purchase.status = "completed";
         }
         
