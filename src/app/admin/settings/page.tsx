@@ -9,6 +9,7 @@ export default function AdminSettings() {
   const { user, token, loading: authLoading } = useAuth();
   const router = useRouter();
   const [gmailPrice, setGmailPrice] = useState("");
+  const [whatsappNumber, setWhatsappNumber] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -23,6 +24,7 @@ export default function AdminSettings() {
       if (res.ok) {
         const data = await res.json();
         setGmailPrice(String(data.gmailPrice));
+        setWhatsappNumber(data.whatsappNumber || "");
       }
     } catch {
       console.error("Failed to fetch settings");
@@ -55,7 +57,10 @@ export default function AdminSettings() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ gmailPrice: Number(gmailPrice) }),
+        body: JSON.stringify({
+          gmailPrice: Number(gmailPrice),
+          whatsappNumber,
+        }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -116,6 +121,22 @@ export default function AdminSettings() {
                 />
                 <p className="mt-1 text-sm text-gray-500">
                   This amount will be deducted from client balance for each Gmail purchase
+                </p>
+              </div>
+              <div>
+                <label htmlFor="whatsappNumber" className="block text-sm font-medium text-gray-700 mb-1">
+                  Deposit WhatsApp Number
+                </label>
+                <input
+                  id="whatsappNumber"
+                  type="text"
+                  value={whatsappNumber}
+                  onChange={(e) => setWhatsappNumber(e.target.value)}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-gray-900"
+                  placeholder="e.g. +92 300 1234567"
+                />
+                <p className="mt-1 text-sm text-gray-500">
+                  This number appears on the dashboard deposit section with a WhatsApp link
                 </p>
               </div>
               <button

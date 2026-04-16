@@ -12,9 +12,13 @@ export async function GET(req: NextRequest) {
 
     await connectDB();
 
-    const gmailPrice = await getSetting("gmail_price", "10");
+    const gmailPrice = await getSetting("gmail_price", "25");
+    const whatsappNumber = await getSetting("whatsapp_number", "");
 
-    return NextResponse.json({ gmailPrice: Number(gmailPrice) });
+    return NextResponse.json({
+      gmailPrice: Number(gmailPrice),
+      whatsappNumber,
+    });
   } catch (error) {
     console.error("Get settings error:", error);
     return NextResponse.json(
@@ -31,7 +35,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { gmailPrice } = await req.json();
+    const { gmailPrice, whatsappNumber } = await req.json();
 
     if (!gmailPrice || gmailPrice <= 0) {
       return NextResponse.json(
@@ -43,10 +47,14 @@ export async function POST(req: NextRequest) {
     await connectDB();
 
     await setSetting("gmail_price", String(gmailPrice));
+    if (typeof whatsappNumber === "string") {
+      await setSetting("whatsapp_number", whatsappNumber.trim());
+    }
 
     return NextResponse.json({
       message: `Gmail price updated to ${gmailPrice} PKR`,
       gmailPrice,
+      whatsappNumber: typeof whatsappNumber === "string" ? whatsappNumber.trim() : undefined,
     });
   } catch (error) {
     console.error("Update settings error:", error);

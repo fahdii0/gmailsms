@@ -2,26 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import Purchase from "@/models/Purchase";
 import { getUserFromRequest } from "@/lib/auth";
-
-async function getCodeFromAPI(mailId: number) {
-  const API_KEY = "yu5BsIwXebcjYInuoaYDGojVW1ayPOFv";
-  const BASE_URL = "https://smsbower.app/api/mail";
-  
-  const url = `${BASE_URL}/getCode?api_key=${API_KEY}&mailId=${mailId}`;
-  
-  try {
-    const response = await fetch(url);
-    const data = await response.json();
-    
-    if (data.status === 1) {
-      return { success: true, code: data.code };
-    } else {
-      return { success: false, error: data.error };
-    }
-  } catch (error) {
-    return { success: false, error: "API connection failed" };
-  }
-}
+import { getCode as getCodeFromAPI } from "@/lib/smsbower";
 
 export async function POST(req: NextRequest) {
   try {
@@ -96,7 +77,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Call SMSBower API to get code
-    const result = await getCodeFromAPI(Number(purchase.mailId));
+    const result = await getCodeFromAPI(String(purchase.mailId));
     
     if (result.success && result.code) {
       // Check if this code is new (not already in allCodes)

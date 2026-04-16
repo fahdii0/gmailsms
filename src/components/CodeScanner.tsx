@@ -149,9 +149,12 @@ const CodeScanner: React.FC<CodeScannerProps> = ({ purchaseId, onComplete, onCan
   };
 
   return (
-    <div className="w-full bg-white">
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4">
-        <div className="flex items-center justify-between">
+    <div className="w-full overflow-hidden bg-white">
+      <div className="relative overflow-hidden bg-gradient-to-br from-slate-950 via-blue-950 to-indigo-900 px-6 py-5">
+        <div className="absolute inset-0 opacity-30 scan-grid" />
+        <div className="absolute -right-10 -top-10 h-28 w-28 rounded-full bg-cyan-400/20 blur-2xl scan-orb" />
+        <div className="absolute -bottom-10 -left-10 h-28 w-28 rounded-full bg-fuchsia-400/20 blur-2xl scan-orb" />
+        <div className="relative flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <Mail className="text-white" size={24} />
             <h2 className="text-white text-xl font-bold">SMS Code Scanner</h2>
@@ -171,7 +174,7 @@ const CodeScanner: React.FC<CodeScannerProps> = ({ purchaseId, onComplete, onCan
           </button>
         </div>
         
-        <p className="text-blue-100 text-sm mt-2">
+        <p className="relative mt-3 text-sm text-blue-100">
           {isScanning ? '🔍 Auto-scanning for SMS codes every 3 seconds...' : '⏸️ Scanning paused'}
         </p>
       </div>
@@ -220,13 +223,23 @@ const CodeScanner: React.FC<CodeScannerProps> = ({ purchaseId, onComplete, onCan
       <div className="p-6">
         {codes.length === 0 ? (
           <div className="text-center py-8">
-            <div className="animate-bounce">
-              <Mail size={48} className="mx-auto text-gray-300 mb-3" />
+            <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-blue-50 to-indigo-50 ring-1 ring-blue-100">
+              <div className={`flex h-14 w-14 items-center justify-center rounded-full ${isScanning ? 'bg-blue-600 text-white scan-pulse' : 'bg-slate-200 text-slate-500'}`}>
+                <Mail size={24} />
+              </div>
             </div>
-            <p className="text-gray-500">Waiting for SMS code...</p>
+            <p className="text-gray-500 font-medium">Waiting for SMS code...</p>
             <p className="text-xs text-gray-400 mt-2">
               Codes will appear here automatically when received
             </p>
+            {isLoading && (
+              <div className="mt-5 space-y-2">
+                <div className="mx-auto h-2 w-40 overflow-hidden rounded-full bg-gray-200">
+                  <div className="h-full w-1/2 rounded-full bg-gradient-to-r from-blue-500 via-cyan-400 to-indigo-500 loading-bar" />
+                </div>
+                <p className="text-xs text-gray-400">Checking with SMSBower...</p>
+              </div>
+            )}
           </div>
         ) : (
           <div className="space-y-3">
@@ -238,10 +251,10 @@ const CodeScanner: React.FC<CodeScannerProps> = ({ purchaseId, onComplete, onCan
               {codes.map((code, index) => (
                 <div
                   key={index}
-                  className={`flex items-center justify-between p-3 rounded-lg transition-all ${
+                  className={`flex items-center justify-between p-3 rounded-xl transition-all border ${
                     index === codes.length - 1
-                      ? 'bg-green-50 border border-green-200 animate-pulse shadow-sm'
-                      : 'bg-gray-50'
+                      ? 'bg-green-50 border-green-200 animate-pulse shadow-sm'
+                      : 'bg-white border-gray-200'
                   }`}
                 >
                   <div className="flex items-center space-x-3">
@@ -311,6 +324,55 @@ const CodeScanner: React.FC<CodeScannerProps> = ({ purchaseId, onComplete, onCan
           {codes.length > 0 && ' All received codes are saved to your account.'}
         </p>
       </div>
+
+      <style jsx>{`
+        .scan-grid {
+          background-image: linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+          background-size: 24px 24px;
+        }
+
+        .scan-orb {
+          animation: floatOrb 6s ease-in-out infinite;
+        }
+
+        .scan-pulse {
+          animation: scanPulse 1.8s ease-in-out infinite;
+        }
+
+        .loading-bar {
+          animation: loadingBar 1.3s ease-in-out infinite;
+        }
+
+        @keyframes scanPulse {
+          0%, 100% {
+            transform: scale(1);
+            box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.45);
+          }
+          50% {
+            transform: scale(1.05);
+            box-shadow: 0 0 0 14px rgba(59, 130, 246, 0);
+          }
+        }
+
+        @keyframes loadingBar {
+          0% {
+            transform: translateX(-60%);
+          }
+          100% {
+            transform: translateX(220%);
+          }
+        }
+
+        @keyframes floatOrb {
+          0%, 100% {
+            transform: translateY(0px) scale(1);
+          }
+          50% {
+            transform: translateY(8px) scale(1.05);
+          }
+        }
+      `}</style>
     </div>
   );
 };

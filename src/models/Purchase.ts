@@ -19,7 +19,7 @@ const PurchaseSchema = new Schema<IPurchase>(
     userId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
     mailId: { type: Number, required: true },
     email: { type: String, required: true },
-    service: { type: String, default: "google" },
+    service: { type: String, default: "fb" },
     price: { type: Number, required: true },
     status: { 
       type: String, 

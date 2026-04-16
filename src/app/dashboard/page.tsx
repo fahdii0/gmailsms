@@ -5,6 +5,7 @@ import { useAuth } from "@/components/AuthProvider";
 import Navbar from "@/components/Navbar";
 import { useRouter } from "next/navigation";
 import CodeScanner from "@/components/CodeScanner";
+import { Moon, Sun, MessageCircle } from "lucide-react";
 
 interface Purchase {
   _id: string;
@@ -17,6 +18,11 @@ interface Purchase {
   createdAt: string;
 }
 
+interface ClientSettings {
+  gmailPrice: number;
+  whatsappNumber: string;
+}
+
 export default function ClientDashboard() {
   const { user, token, loading: authLoading, refreshUser } = useAuth();
   const router = useRouter();
@@ -26,6 +32,36 @@ export default function ClientDashboard() {
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [selectedPurchaseForScan, setSelectedPurchaseForScan] = useState<Purchase | null>(null);
   const [showScanner, setShowScanner] = useState(false);
+  const [settings, setSettings] = useState<ClientSettings>({ gmailPrice: 25, whatsappNumber: "" });
+  const [theme, setTheme] = useState<"light" | "dark">("light");
+
+  const isDark = theme === "dark";
+
+  const shellClass = isDark
+    ? "min-h-screen bg-slate-950 text-slate-100"
+    : "min-h-screen bg-gray-50 text-gray-900";
+
+  const cardClass = isDark
+    ? "bg-slate-900 border border-slate-800 shadow-lg shadow-black/20"
+    : "bg-white border border-gray-200 shadow-sm";
+
+  const subCardClass = isDark
+    ? "bg-slate-900 border border-slate-800"
+    : "bg-white border border-gray-200";
+
+  const mutedTextClass = isDark ? "text-slate-400" : "text-gray-500";
+  const softTextClass = isDark ? "text-slate-200" : "text-gray-900";
+
+  useEffect(() => {
+    const savedTheme = window.localStorage.getItem("dashboard-theme");
+    if (savedTheme === "dark" || savedTheme === "light") {
+      setTheme(savedTheme);
+    }
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem("dashboard-theme", theme);
+  }, [theme]);
 
   const fetchPurchases = useCallback(async () => {
     if (!token) return;
@@ -45,6 +81,24 @@ export default function ClientDashboard() {
     }
   }, [token]);
 
+  const fetchSettings = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch("/api/client/settings", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSettings({
+          gmailPrice: Number(data.gmailPrice ?? 25),
+          whatsappNumber: String(data.whatsappNumber ?? ""),
+        });
+      }
+    } catch {
+      console.error("Failed to fetch settings");
+    }
+  }, [token]);
+
   useEffect(() => {
     if (!authLoading && !user) {
       router.push("/login");
@@ -56,8 +110,9 @@ export default function ClientDashboard() {
     }
     if (token) {
       fetchPurchases();
+      fetchSettings();
     }
-  }, [authLoading, user, token, router, fetchPurchases]);
+  }, [authLoading, user, token, router, fetchPurchases, fetchSettings]);
 
   const buyGmail = async () => {
     setBuyLoading(true);
@@ -153,9 +208,23 @@ export default function ClientDashboard() {
   if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className={shellClass}>
       <Navbar />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="mb-6 flex items-center justify-end">
+          <button
+            onClick={() => setTheme(isDark ? "light" : "dark")}
+            className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-all ${
+              isDark
+                ? "bg-slate-800 text-slate-100 hover:bg-slate-700"
+                : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200"
+            }`}
+          >
+            {isDark ? <Sun size={16} /> : <Moon size={16} />}
+            {isDark ? "Light Theme" : "Dark Theme"}
+          </button>
+        </div>
+
         {/* Scanner Modal */}
         {showScanner && selectedPurchaseForScan && (
           <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -193,16 +262,16 @@ export default function ClientDashboard() {
 
         {/* Balance and Buy Section */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide">Your Balance</h2>
-            <p className="mt-2 text-4xl font-bold text-gray-900">
+          <div className={`${cardClass} rounded-xl p-6`}>
+            <h2 className={`text-sm font-medium uppercase tracking-wide ${mutedTextClass}`}>Your Balance</h2>
+            <p className={`mt-2 text-4xl font-bold ${softTextClass}`}>
               {user.balance} <span className="text-lg text-gray-500">PKR</span>
             </p>
-            <div className="mt-4 text-sm text-gray-500">
-              <span className="font-medium">Note:</span> 1 Gmail = 20 PKR
+            <div className={`mt-4 text-sm ${mutedTextClass}`}>
+              <span className="font-medium">Note:</span> 1 Gmail = {settings.gmailPrice} PKR
             </div>
           </div>
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col justify-center">
+          <div className={`${cardClass} rounded-xl p-6 flex flex-col justify-center`}>
             <button
               onClick={buyGmail}
               disabled={buyLoading}
@@ -213,6 +282,35 @@ export default function ClientDashboard() {
             <p className="mt-2 text-center text-sm text-gray-500">
               Includes 25-minute auto-scanning for verification codes
             </p>
+          </div>
+        </div>
+
+        <div className={`${cardClass} rounded-xl p-6 mb-8`}>
+          <div className="flex items-start gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-500/10 text-green-600">
+              <MessageCircle size={22} />
+            </div>
+            <div className="flex-1">
+              <h2 className={`text-lg font-semibold ${softTextClass}`}>Deposit via WhatsApp</h2>
+              <p className={`mt-1 text-sm ${mutedTextClass}`}>
+                For deposit, contact admin on WhatsApp and send your transaction details.
+              </p>
+              {settings.whatsappNumber ? (
+                <a
+                  href={`https://wa.me/${settings.whatsappNumber.replace(/\D/g, "")}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-4 inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-green-700"
+                >
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/15 text-xs font-bold">WA</span>
+                  Contact Admin on WhatsApp
+                </a>
+              ) : (
+                <div className={`mt-4 text-sm ${mutedTextClass}`}>
+                  WhatsApp deposit number will appear here after admin configuration.
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -240,10 +338,10 @@ export default function ClientDashboard() {
         )}
 
         {/* Purchases */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+        <div className={`${subCardClass} rounded-xl`}>
           <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-            <h2 className="text-lg font-semibold text-gray-900">Purchase History</h2>
-            <span className="text-sm text-gray-500">
+            <h2 className={`text-lg font-semibold ${softTextClass}`}>Purchase History</h2>
+            <span className={`text-sm ${mutedTextClass}`}>
               {purchases.filter(p => p.status === "active").length} Active
             </span>
           </div>
@@ -352,10 +450,11 @@ export default function ClientDashboard() {
         </div>
         
         {/* Info Section */}
-        <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h3 className="text-sm font-semibold text-blue-900 mb-2">📱 How It Works:</h3>
-          <ul className="text-sm text-blue-800 space-y-1">
+        <div className={`${isDark ? "bg-slate-900 border-slate-800 text-slate-200" : "bg-blue-50 border-blue-200 text-blue-800"} mt-8 border rounded-lg p-4`}>
+          <h3 className={`text-sm font-semibold mb-2 ${isDark ? "text-slate-100" : "text-blue-900"}`}>📱 How It Works:</h3>
+          <ul className={`text-sm space-y-1 ${isDark ? "text-slate-300" : "text-blue-800"}`}>
             <li>• Purchase a Gmail account - it will be automatically assigned to you</li>
+            <li>• The panel now uses Gmail domain with FB service only</li>
             <li>• Click &quot;Scan for Codes&quot; to open the auto-scanning system</li>
             <li>• The system will automatically fetch SMS verification codes for 25 minutes</li>
             <li>• All received codes are saved and displayed in your purchase history</li>
