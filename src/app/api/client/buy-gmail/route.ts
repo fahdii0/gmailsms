@@ -6,7 +6,7 @@ import { getUserFromRequest } from "@/lib/auth";
 import { getSetting } from "@/models/Settings";
 
 const API_KEY = "yu5BsIwXebcjYInuoaYDGojVW1ayPOFv";
-const BASE_URL = "https://smsbower.app/api/mail"; // Keep working .app URL
+const BASE_URL = "https://smsbower.page/api/mail"; // Keep working .app URL
 
 // Service codes from API documentation
 const SERVICE_MAP = {
