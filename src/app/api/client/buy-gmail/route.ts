@@ -6,7 +6,7 @@ import { getUserFromRequest } from "@/lib/auth";
 import { getSetting } from "@/models/Settings";
 
 const API_KEY = "yu5BsIwXebcjYInuoaYDGojVW1ayPOFv";
-const BASE_URL = "https://smsbower.app/api/mail"; // Use .app not .page
+const BASE_URL = "https://smsbower.app/api/mail";
 
 // Service codes from API documentation
 const SERVICE_MAP = {
@@ -17,16 +17,13 @@ const SERVICE_MAP = {
 async function getActivation(service: "gmail" | "facebook") {
   const serviceCode = SERVICE_MAP[service];
   
-  // Build URL differently based on service
-  let url = `${BASE_URL}/getActivation?api_key=${API_KEY}&service=${serviceCode}`;
+  // Build URL properly
+  let url = `${BASE_URL}/getActivation?api_key=${API_KEY}&service=${serviceCode}&alias=0`;
   
-  // Only add domain for Gmail - Facebook doesn't need domain parameter
+  // Only add domain for Gmail
   if (service === "gmail") {
     url += `&domain=gmail.com`;
   }
-  
-  // Add alias=0 for both services
-  url += `&alias=0`;
   
   console.log("Calling API:", url.replace(API_KEY, "HIDDEN"));
   
@@ -73,10 +70,10 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { serviceType } = body;
     
-    // Validate service type - ONLY allow gmail or facebook
+    // ONLY allow gmail or facebook
     if (!serviceType || (serviceType !== "gmail" && serviceType !== "facebook")) {
       return NextResponse.json(
-        { error: "Invalid service. Allowed services: gmail, facebook" },
+        { error: "Invalid service. Allowed services: gmail, facebook only" },
         { status: 400 }
       );
     }
@@ -84,8 +81,8 @@ export async function POST(req: NextRequest) {
     await connectDB();
 
     // Get price based on service
-    const priceSetting = serviceType === "gmail" ? "gmail_price" : "facebook_price";
-    const price = Number(await getSetting(priceSetting, serviceType === "gmail" ? "25" : "20"));
+    const price = serviceType === "gmail" ? 25 : 20; // Fixed prices
+    // Note: Remove the getSetting call if you don't have these settings, or add them to your DB
 
     const user = await User.findById(payload.userId);
     if (!user) {
